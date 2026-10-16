@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>파일 변환기</title>
-<meta name="description" content="MP4, GIF, WebM, MP3, PNG, JPG 등 파일을 브라우저에서 바로 변환합니다. 파일은 서버로 업로드되지 않습니다.">
+<meta name="description" content="MP4↔GIF, HEIC→JPG, PDF 합치기·나누기, 한글(HWP)→텍스트, 엑셀↔CSV, SMI↔SRT 자막 등 파일 변환을 브라우저에서 바로. 파일은 서버로 업로드되지 않습니다.">
 <style>
   :root {
     --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a65;
@@ -19,35 +19,52 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink);
     font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; line-height: 1.5; }
-  main { max-width: 640px; margin: 0 auto; padding: 40px 16px 64px; }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 16px 64px; }
   h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
-  .sub { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: 15px; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 12px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; width: auto; margin: 0; padding: 8px 14px; border-radius: 999px; font-weight: 500;
+    background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .tabs button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
   .row { display: flex; gap: 10px; align-items: end; }
-  .row > label { flex: 1; }
+  .row > label { flex: 1; min-width: 0; }
   .arrow { padding-bottom: 10px; color: var(--muted); font-size: 20px; }
   label > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-  select, input[type=number] { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink);
+  select, input[type=number], input[type=text] { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink);
     background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
-  .drop { margin-top: 16px; border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px;
+  .desc { font-size: 13px; color: var(--muted); margin: 10px 0 0; min-height: 0; }
+  .drop { margin-top: 16px; border: 2px dashed var(--line); border-radius: 12px; padding: 26px 16px;
     text-align: center; cursor: pointer; color: var(--muted); transition: .15s; }
   .drop.over, .drop:hover { border-color: var(--accent); background: var(--soft); }
-  .drop strong { color: var(--ink); display: block; word-break: break-all; }
-  .opts { display: none; margin-top: 16px; gap: 10px; }
-  .opts.show { display: flex; }
-  .opts label { flex: 1; }
+  .drop strong { color: var(--ink); display: block; }
+  .files { list-style: none; margin: 10px 0 0; padding: 0; font-size: 14px; }
+  .files li { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-radius: 8px; background: var(--bg); margin-top: 4px; }
+  .files li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files li small { color: var(--muted); }
+  .files li button, .mini { width: auto; margin: 0; padding: 2px 8px; background: transparent; color: var(--muted); font-weight: 500; }
+  .mini { font-size: 13px; text-decoration: underline; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
+  .opts:empty { display: none; }
   button { margin-top: 16px; width: 100%; padding: 13px; font: inherit; font-weight: 600; border: 0;
     border-radius: 10px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
   button:disabled { opacity: .45; cursor: not-allowed; }
   .bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 16px; overflow: hidden; display: none; }
   .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-  .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 21px; }
+  .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 21px; white-space: pre-wrap; }
   .status.err { color: var(--err); }
   .result { margin-top: 20px; display: none; }
   .result.show { display: block; }
-  .result img, .result video, .result audio { max-width: 100%; border-radius: 10px; display: block; margin-bottom: 12px; }
+  .result img, .result video, .result audio, .result iframe { max-width: 100%; border-radius: 10px; display: block; margin-bottom: 12px; }
+  .result iframe { width: 100%; height: 320px; border: 1px solid var(--line); background: #fff; }
+  .result pre { max-height: 320px; overflow: auto; background: var(--bg); padding: 12px; border-radius: 10px;
+    font-size: 13px; white-space: pre-wrap; word-break: break-all; margin: 0 0 12px; }
   .dl { display: inline-block; padding: 11px 18px; border-radius: 10px; background: var(--soft);
-    color: var(--accent); font-weight: 600; text-decoration: none; }
+    color: var(--accent); font-weight: 600; text-decoration: none; margin: 0 6px 6px 0; cursor: pointer; }
+  .outlist { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; max-height: 260px; overflow: auto; }
+  .outlist li { padding: 4px 0; }
+  .outlist a { color: var(--accent); }
   .note { margin-top: 20px; font-size: 13px; color: var(--muted); }
 </style>
 </head>
@@ -56,26 +73,24 @@
   <h1>파일 변환기</h1>
   <p class="sub">파일은 서버로 올라가지 않고 내 브라우저 안에서만 변환됩니다.</p>
 
+  <nav class="tabs" id="tabs"></nav>
+
   <div class="card">
     <div class="row">
       <label><span>원본 형식</span><select id="from"></select></label>
       <div class="arrow">→</div>
       <label><span>바꿀 형식</span><select id="to"></select></label>
     </div>
+    <p class="desc" id="desc"></p>
 
     <div class="drop" id="drop">
       <strong id="dropTitle">파일을 끌어다 놓거나 클릭해서 선택</strong>
       <small id="dropHint"></small>
       <input type="file" id="file" hidden>
     </div>
+    <ul class="files" id="files"></ul>
 
-    <div class="opts" id="gifOpts">
-      <label><span>초당 프레임</span><input type="number" id="fps" value="12" min="1" max="30"></label>
-      <label><span>가로 크기(px)</span><input type="number" id="width" value="480" min="50" max="1920"></label>
-    </div>
-    <div class="opts" id="imgOpts">
-      <label><span>품질 (0.1~1, JPG·WebP)</span><input type="number" id="quality" value="0.92" min="0.1" max="1" step="0.01"></label>
-    </div>
+    <div class="opts" id="opts"></div>
 
     <button id="go" disabled>변환하기</button>
     <div class="bar" id="bar"><i id="barFill"></i></div>
@@ -83,188 +98,1050 @@
 
     <div class="result" id="result">
       <div id="preview"></div>
-      <a class="dl" id="dl">다운로드</a>
+      <div id="dls"></div>
+      <ul class="outlist" id="outlist"></ul>
     </div>
   </div>
 
-  <p class="note">영상·음성 변환은 처음 한 번 변환 엔진(약 30MB)을 받아옵니다. 큰 영상은 시간이 걸리고 메모리를 많이 씁니다.</p>
+  <p class="note">필요한 변환 엔진은 해당 변환을 처음 쓸 때만 받아옵니다(영상·음성은 약 30MB). 큰 파일은 시간이 걸리고 메모리를 많이 씁니다.</p>
 </main>
 
 <script>
-// 변환 표: 원본 → 가능한 대상. engine: "ffmpeg" 또는 "canvas"
+"use strict";
+/* =========================================================
+   공통 도구
+   ========================================================= */
+const CDN = "https://cdn.jsdelivr.net/npm";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const extOf = name => { const e = name.includes(".") ? name.split(".").pop().toLowerCase() : ""; return e === "jpeg" ? "jpg" : e; };
+const baseOf = name => name.replace(/\.[^.]+$/, "");
+const sizeStr = b => b < 1024 ? b + "B" : b < 1048576 ? (b / 1024).toFixed(1) + "KB" : (b / 1048576).toFixed(2) + "MB";
+
 const MIME = {
   mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", avi: "video/x-msvideo", mkv: "video/x-matroska",
-  gif: "image/gif", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4",
-  png: "image/png", jpg: "image/jpeg", webp: "image/webp", bmp: "image/bmp"
+  gif: "image/gif", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4", flac: "audio/flac",
+  aac: "audio/aac", opus: "audio/ogg", png: "image/png", jpg: "image/jpeg", webp: "image/webp", bmp: "image/bmp",
+  ico: "image/x-icon", svg: "image/svg+xml", pdf: "application/pdf", txt: "text/plain", html: "text/html",
+  md: "text/markdown", csv: "text/csv", json: "application/json", yaml: "text/yaml", xml: "application/xml",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ods: "application/vnd.oasis.opendocument.spreadsheet",
+  srt: "text/plain", vtt: "text/vtt", smi: "text/plain", ass: "text/plain", zip: "application/zip",
+  ttf: "font/ttf", otf: "font/otf", woff: "font/woff"
 };
-const VIDEO = ["mp4", "webm", "mov", "avi", "mkv"];
-const AUDIO = ["mp3", "wav", "ogg", "m4a"];
-const IMAGE = ["png", "jpg", "webp", "bmp"];
+const blobOf = (data, ext) => new Blob([data], { type: MIME[ext] || "application/octet-stream" });
+const out = (name, data, ext) => ({ name, blob: data instanceof Blob ? data : blobOf(data, ext) });
 
-const TABLE = {};
-for (const v of VIDEO) TABLE[v] = [...VIDEO.filter(x => x !== v && x !== "avi" && x !== "mov"), "gif", "mp3", "wav"];
-TABLE.gif = ["mp4", "webm", "png", "jpg"];
-for (const a of AUDIO) TABLE[a] = AUDIO.filter(x => x !== a);
-for (const i of IMAGE) TABLE[i] = IMAGE.filter(x => x !== i && x !== "bmp"); // BMP는 브라우저 저장 미지원이라 원본으로만
-
-const LABEL = { mp4: "MP4 (영상)", webm: "WebM (영상)", mov: "MOV (영상)", avi: "AVI (영상)", mkv: "MKV (영상)",
-  gif: "GIF (움짤)", mp3: "MP3 (음성)", wav: "WAV (음성)", ogg: "OGG (음성)", m4a: "M4A (음성)",
-  png: "PNG (이미지)", jpg: "JPG (이미지)", webp: "WebP (이미지)", bmp: "BMP (이미지)" };
-
-const $ = id => document.getElementById(id);
-const fromSel = $("from"), toSel = $("to"), fileIn = $("file"), drop = $("drop");
-let file = null, ffmpeg = null, lastURL = null;
-
-for (const k of Object.keys(TABLE)) fromSel.add(new Option(LABEL[k], k));
-function fillTo() {
-  const keep = toSel.value;
-  toSel.innerHTML = "";
-  for (const k of TABLE[fromSel.value]) toSel.add(new Option(LABEL[k], k));
-  if (TABLE[fromSel.value].includes(keep)) toSel.value = keep;
-  fileIn.accept = "." + fromSel.value + (fromSel.value === "jpg" ? ",.jpeg" : "");
-  $("dropHint").textContent = "." + fromSel.value + " 파일";
-  if (file && extOf(file.name) !== fromSel.value) setFile(null);
-  updateOpts();
+// 외부 라이브러리는 필요할 때만 불러온다
+const loaded = {};
+function loadScript(src) {
+  return loaded[src] ||= new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = src; s.onload = res;
+    s.onerror = () => { delete loaded[src]; rej(new Error("라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요.\n" + src)); };
+    document.head.appendChild(s);
+  });
 }
-function updateOpts() {
-  $("gifOpts").classList.toggle("show", toSel.value === "gif" && fromSel.value !== "gif");
-  $("imgOpts").classList.toggle("show", engineFor() === "canvas" && ["jpg", "webp"].includes(toSel.value));
-}
-fromSel.onchange = fillTo;
-toSel.onchange = updateOpts;
-fromSel.value = "mp4"; fillTo(); toSel.value = "gif"; updateOpts();
+const L = {
+  fflate:   () => loadScript(`${CDN}/fflate@0.8.2/umd/index.js`).then(() => window.fflate),
+  heic:     () => loadScript(`${CDN}/heic2any@0.0.4/dist/heic2any.min.js`).then(() => window.heic2any),
+  utif:     async () => { await loadScript(`${CDN}/pako@2.1.0/dist/pako.min.js`); await loadScript(`${CDN}/utif@3.1.0/UTIF.js`); return window.UTIF; },
+  pdflib:   () => loadScript(`${CDN}/pdf-lib@1.17.1/dist/pdf-lib.min.js`).then(() => window.PDFLib),
+  mammoth:  () => loadScript(`${CDN}/mammoth@1.8.0/mammoth.browser.min.js`).then(() => window.mammoth),
+  marked:   () => loadScript(`${CDN}/marked@12.0.2/marked.min.js`).then(() => window.marked),
+  turndown: () => loadScript(`${CDN}/turndown@7.2.0/dist/turndown.js`).then(() => window.TurndownService),
+  xlsx:     () => loadScript(`${CDN}/xlsx@0.18.5/dist/xlsx.full.min.js`).then(() => window.XLSX),
+  yaml:     () => loadScript(`${CDN}/js-yaml@4.1.0/dist/js-yaml.min.js`).then(() => window.jsyaml),
+};
 
-function extOf(name) { let e = name.split(".").pop().toLowerCase(); return e === "jpeg" ? "jpg" : e; }
-function engineFor() {
-  const f = fromSel.value, t = toSel.value;
-  return (IMAGE.includes(f) && IMAGE.includes(t)) ? "canvas" : "ffmpeg";
+// pdf.js (워커를 blob으로 띄워 GitHub Pages에서도 동작)
+const PDFJS = `${CDN}/pdfjs-dist@4.4.168`;
+let pdfjsP;
+function getPdfjs() {
+  return pdfjsP ||= (async () => {
+    const lib = await import(`${PDFJS}/build/pdf.min.mjs`);
+    const src = await (await fetch(`${PDFJS}/build/pdf.worker.min.mjs`)).text();
+    lib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+    return lib;
+  })().catch(e => { pdfjsP = null; throw e; });
 }
-function setFile(f) {
-  file = f;
-  $("dropTitle").textContent = f ? `${f.name} (${(f.size / 1048576).toFixed(1)}MB)` : "파일을 끌어다 놓거나 클릭해서 선택";
-  $("go").disabled = !f;
-  $("result").classList.remove("show");
-  status("");
-}
-function pick(f) {
-  if (!f) return;
-  const e = extOf(f.name);
-  if (TABLE[e] && e !== fromSel.value) { fromSel.value = e; fillTo(); } // 원본 형식 자동 맞춤
-  setFile(f);
+async function openPdfjs(file) {
+  const lib = await getPdfjs();
+  return lib.getDocument({
+    data: new Uint8Array(await file.arrayBuffer()),
+    cMapUrl: `${PDFJS}/cmaps/`, cMapPacked: true, standardFontDataUrl: `${PDFJS}/standard_fonts/`
+  }).promise;
 }
 
-drop.onclick = () => fileIn.click();
-fileIn.onchange = () => pick(fileIn.files[0]);
-drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
-drop.ondragleave = () => drop.classList.remove("over");
-drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); };
-
-function status(msg, err) { $("status").textContent = msg; $("status").classList.toggle("err", !!err); }
-function progress(p) {
-  $("bar").style.display = p == null ? "none" : "block";
-  $("barFill").style.width = Math.max(0, Math.min(100, (p || 0) * 100)) + "%";
+// 텍스트 인코딩: BOM → UTF-8 → CP949(EUC-KR) 순으로 판별
+function decodeText(buf) {
+  const u = new Uint8Array(buf);
+  if (u[0] === 0xEF && u[1] === 0xBB && u[2] === 0xBF) return { text: new TextDecoder().decode(u.subarray(3)), enc: "UTF-8" };
+  if (u[0] === 0xFF && u[1] === 0xFE) return { text: new TextDecoder("utf-16le").decode(u.subarray(2)), enc: "UTF-16" };
+  if (u[0] === 0xFE && u[1] === 0xFF) return { text: new TextDecoder("utf-16be").decode(u.subarray(2)), enc: "UTF-16" };
+  try { return { text: new TextDecoder("utf-8", { fatal: true }).decode(u), enc: "UTF-8" }; }
+  catch { return { text: new TextDecoder("euc-kr").decode(u), enc: "EUC-KR" }; }
 }
+const readText = async f => decodeText(await f.arrayBuffer()).text;
 
-// ---------- 이미지: Canvas ----------
-async function convertCanvas() {
-  const bmp = await createImageBitmap(file);
-  const c = document.createElement("canvas");
-  c.width = bmp.width; c.height = bmp.height;
-  const ctx = c.getContext("2d");
-  if (toSel.value === "jpg") { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); } // 투명 → 흰 배경
-  ctx.drawImage(bmp, 0, 0);
-  const q = parseFloat($("quality").value) || 0.92;
-  return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("이 브라우저는 해당 형식 저장을 지원하지 않습니다.")), MIME[toSel.value], q));
+let cp949Map = null;
+function encodeCP949(str) {
+  if (!cp949Map) {
+    cp949Map = new Map();
+    const dec = new TextDecoder("euc-kr"), b = new Uint8Array(2);
+    for (let a = 0x81; a <= 0xFE; a++) for (let c = 0x41; c <= 0xFE; c++) {
+      b[0] = a; b[1] = c;
+      const ch = dec.decode(b);
+      if (ch.length === 1 && ch !== "\uFFFD" && !cp949Map.has(ch)) cp949Map.set(ch, [a, c]);
+    }
+  }
+  const bytes = []; let missing = 0;
+  for (const ch of str) {
+    const code = ch.codePointAt(0);
+    if (code < 0x80) { bytes.push(code); continue; }
+    const m = cp949Map.get(ch);
+    if (m) bytes.push(m[0], m[1]); else { bytes.push(0x3F); missing++; }
+  }
+  return { bytes: new Uint8Array(bytes), missing };
 }
+// enc: "utf8" | "utf8bom" | "euckr"
+function encodeText(str, enc = "utf8") {
+  if (enc === "euckr") {
+    const r = encodeCP949(str);
+    if (r.missing) note(`EUC-KR에 없는 글자 ${r.missing}개는 ?로 바뀌었습니다.`);
+    return r.bytes;
+  }
+  const u = new TextEncoder().encode(str);
+  if (enc !== "utf8bom") return u;
+  const o = new Uint8Array(u.length + 3); o.set([0xEF, 0xBB, 0xBF]); o.set(u, 3); return o;
+}
+const htmlDoc = (title, body) =>
+  `<!doctype html>\n<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title>` +
+  `<style>body{font-family:system-ui,"Malgun Gothic",sans-serif;max-width:800px;margin:2em auto;padding:0 1em;line-height:1.7}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}img{max-width:100%}</style>` +
+  `</head><body>\n${body}\n</body></html>\n`;
 
-// ---------- 영상·음성: ffmpeg.wasm ----------
-const CDN = "https://cdn.jsdelivr.net/npm";
+/* =========================================================
+   영상·음성 (ffmpeg.wasm)
+   ========================================================= */
+let ffmpeg = null, ffLog = [];
 async function loadFFmpeg() {
   if (ffmpeg) return ffmpeg;
-  status("변환 엔진 불러오는 중… (처음 한 번만)");
+  status("영상 변환 엔진 불러오는 중… (처음 한 번만, 약 30MB)");
   const { FFmpeg } = await import(`${CDN}/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js`);
   const { toBlobURL } = await import(`${CDN}/@ffmpeg/util@0.12.1/dist/esm/index.js`);
   const f = new FFmpeg();
   f.on("progress", ({ progress: p }) => progress(p));
-  f.on("log", ({ message }) => console.log(message));
-  // GitHub Pages 같은 다른 출처에서도 워커가 뜨도록 전부 blob URL로 변환
+  f.on("log", ({ message }) => { ffLog.push(message); if (ffLog.length > 30) ffLog.shift(); });
   await f.load({
     classWorkerURL: await toBlobURL(`${CDN}/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js`, "text/javascript"),
     coreURL: await toBlobURL(`${CDN}/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${CDN}/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm`, "application/wasm"),
   });
-  ffmpeg = f;
-  return f;
+  return ffmpeg = f;
 }
 
-function ffArgs(inName, outName) {
-  const t = toSel.value;
-  const fps = parseInt($("fps").value) || 12, w = parseInt($("width").value) || 480;
-  const even = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
-  switch (t) {
-    case "gif": return ["-i", inName, "-vf",
-      `fps=${fps},scale=${w}:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse`, "-loop", "0", outName];
-    case "mp4": return ["-i", inName, "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
-      "-vf", even, "-c:a", "aac", "-movflags", "faststart", outName];
-    case "webm": return ["-i", inName, "-c:v", "libvpx", "-b:v", "1M", "-deadline", "realtime", "-c:a", "libvorbis", outName];
-    case "mkv": return ["-i", inName, "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", outName];
-    case "mp3": return ["-i", inName, "-vn", "-c:a", "libmp3lame", "-q:a", "2", outName];
-    case "wav": return ["-i", inName, "-vn", outName];
-    case "ogg": return ["-i", inName, "-vn", "-c:a", "libvorbis", "-q:a", "5", outName];
-    case "m4a": return ["-i", inName, "-vn", "-c:a", "aac", "-b:a", "192k", outName];
-    case "png": case "jpg": return ["-i", inName, "-frames:v", "1", outName]; // GIF 첫 프레임
-    default: return ["-i", inName, outName];
+function ffArgs(inName, to, o) {
+  const a = ["-i", inName];
+  if (o.start) a.push("-ss", String(o.start));
+  if (o.end) a.push("-to", String(o.end));
+  const scale = o.width > 0 ? `scale=${o.width}:-2` : "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+  const br = o.bitrate || "192k";
+  switch (to) {
+    case "gif": return [...a, "-vf", `fps=${o.fps || 12},scale=${o.width > 0 ? o.width : 480}:-1:flags=lanczos,split[x][y];[x]palettegen[p];[y][p]paletteuse`, "-loop", "0"];
+    case "mp4": return [...a, "-c:v", "libx264", "-preset", "veryfast", "-crf", String(o.crf || 23), "-pix_fmt", "yuv420p", "-vf", scale, "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"];
+    case "mkv": return [...a, "-c:v", "libx264", "-preset", "veryfast", "-crf", String(o.crf || 23), "-vf", scale, "-c:a", "aac"];
+    case "webm": return [...a, "-c:v", "libvpx", "-b:v", "1M", "-crf", "10", "-deadline", "realtime", "-cpu-used", "8", ...(o.width > 0 ? ["-vf", scale] : []), "-c:a", "libvorbis"];
+    case "frames": return [...a, "-vf", `fps=${o.fps || 1}` + (o.width > 0 ? `,${scale}` : ""), "-q:v", "3"];
+    case "mp3": return [...a, "-vn", "-c:a", "libmp3lame", "-b:a", br];
+    case "wav": return [...a, "-vn", "-c:a", "pcm_s16le"];
+    case "ogg": return [...a, "-vn", "-c:a", "libvorbis", "-q:a", "5"];
+    case "m4a": case "aac": return [...a, "-vn", "-c:a", "aac", "-b:a", br];
+    case "flac": return [...a, "-vn", "-c:a", "flac"];
+    case "opus": return [...a, "-vn", "-c:a", "libopus", "-b:a", br];
   }
+  return a;
 }
 
-async function convertFFmpeg() {
+async function ffConvert(file, to, o) {
   const f = await loadFFmpeg();
-  const inName = "input." + fromSel.value, outName = "output." + toSel.value;
-  status("변환 중…");
-  progress(0);
+  const inName = "in." + (extOf(file.name) || "bin");
+  status(`변환 중… ${file.name}`); progress(0); ffLog = [];
   await f.writeFile(inName, new Uint8Array(await file.arrayBuffer()));
-  const code = await f.exec(ffArgs(inName, outName));
-  if (code !== 0) throw new Error("변환에 실패했습니다. (콘솔 로그 확인)");
-  const data = await f.readFile(outName);
-  await f.deleteFile(inName).catch(() => {});
-  await f.deleteFile(outName).catch(() => {});
-  return new Blob([data.buffer], { type: MIME[toSel.value] });
+  try {
+    if (to === "frames") {
+      const code = await f.exec([...ffArgs(inName, to, o), "frame_%04d.jpg"]);
+      const names = (await f.listDir("/")).filter(e => !e.isDir && e.name.startsWith("frame_")).map(e => e.name).sort();
+      if (code !== 0 || !names.length) throw ffError();
+      const res = [];
+      for (const n of names) { res.push(out(`${baseOf(file.name)}_${n}`, await f.readFile(n), "jpg")); await f.deleteFile(n); }
+      return res;
+    }
+    const outName = "out." + to;
+    const code = await f.exec([...ffArgs(inName, to, o), outName]);
+    if (code !== 0) throw ffError();
+    const data = await f.readFile(outName);
+    await f.deleteFile(outName).catch(() => {});
+    return out(`${baseOf(file.name)}.${to}`, data, to);
+  } finally { await f.deleteFile(inName).catch(() => {}); }
+}
+const ffError = () => new Error("변환에 실패했습니다.\n" + ffLog.slice(-4).join("\n"));
+
+/* =========================================================
+   이미지
+   ========================================================= */
+async function decodeImage(file, targetW = 0) {
+  const ext = extOf(file.name);
+  if (ext === "heic" || ext === "heif") {
+    status(`HEIC 해독 중… ${file.name}`);
+    const h = await L.heic();
+    let b = await h({ blob: file, toType: "image/png" });
+    return createImageBitmap(Array.isArray(b) ? b[0] : b);
+  }
+  if (ext === "tif" || ext === "tiff") {
+    const U = await L.utif(), buf = await file.arrayBuffer();
+    const ifd = U.decode(buf)[0]; U.decodeImage(buf, ifd);
+    const rgba = U.toRGBA8(ifd);
+    return createImageBitmap(new ImageData(new Uint8ClampedArray(rgba.buffer, rgba.byteOffset, ifd.width * ifd.height * 4), ifd.width, ifd.height));
+  }
+  if (ext === "svg") {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      let w = img.naturalWidth || 1024, h = img.naturalHeight || 1024;
+      if (targetW > 0) { h = Math.round(h * targetW / w); w = targetW; } // 벡터는 목표 크기로 바로 그려 선명하게
+      const c = document.createElement("canvas"); c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      return createImageBitmap(c);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  return createImageBitmap(file);
+}
+function toCanvas(src, width = 0, bg = null) {
+  const w = width > 0 ? width : src.width, h = Math.max(1, Math.round(src.height * w / src.width));
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const ctx = c.getContext("2d");
+  if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); }
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(src, 0, 0, w, h);
+  return c;
+}
+function canvasBlob(c, mime, q) {
+  return new Promise((res, rej) => c.toBlob(b => {
+    if (!b) return rej(new Error("이미지를 저장하지 못했습니다."));
+    if (b.type !== mime) return rej(new Error("이 브라우저는 이 형식으로 저장을 지원하지 않습니다. (사파리는 WebP 저장 불가 → 크롬을 써 주세요)"));
+    res(b);
+  }, mime, q));
+}
+function canvasToBMP(c) {
+  const w = c.width, h = c.height, px = c.getContext("2d").getImageData(0, 0, w, h).data;
+  const row = (w * 3 + 3) & ~3, size = 54 + row * h, buf = new ArrayBuffer(size), dv = new DataView(buf), u = new Uint8Array(buf);
+  u[0] = 0x42; u[1] = 0x4D; dv.setUint32(2, size, true); dv.setUint32(10, 54, true);
+  dv.setUint32(14, 40, true); dv.setInt32(18, w, true); dv.setInt32(22, h, true);
+  dv.setUint16(26, 1, true); dv.setUint16(28, 24, true); dv.setUint32(34, row * h, true);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const s = ((h - 1 - y) * w + x) * 4, d = 54 + y * row + x * 3;
+    u[d] = px[s + 2]; u[d + 1] = px[s + 1]; u[d + 2] = px[s];
+  }
+  return u;
+}
+async function bitmapToICO(src) {
+  const sizes = [16, 32, 48, 64, 128, 256], pngs = [];
+  for (const s of sizes) {
+    const c = document.createElement("canvas"); c.width = c.height = s;
+    const k = Math.min(s / src.width, s / src.height), w = src.width * k, h = src.height * k;
+    const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(src, (s - w) / 2, (s - h) / 2, w, h);
+    pngs.push(new Uint8Array(await (await canvasBlob(c, "image/png")).arrayBuffer()));
+  }
+  const head = 6 + 16 * sizes.length, total = head + pngs.reduce((a, p) => a + p.length, 0);
+  const u = new Uint8Array(total), dv = new DataView(u.buffer);
+  dv.setUint16(2, 1, true); dv.setUint16(4, sizes.length, true);
+  let off = head;
+  sizes.forEach((s, i) => {
+    const e = 6 + i * 16;
+    u[e] = s === 256 ? 0 : s; u[e + 1] = s === 256 ? 0 : s;
+    dv.setUint16(e + 4, 1, true); dv.setUint16(e + 6, 32, true);
+    dv.setUint32(e + 8, pngs[i].length, true); dv.setUint32(e + 12, off, true);
+    u.set(pngs[i], off); off += pngs[i].length;
+  });
+  return u;
+}
+async function convertImage(file, to, o) {
+  const bmp = await decodeImage(file, o.width);
+  const name = `${baseOf(file.name)}.${to}`;
+  if (to === "ico") return out(name, await bitmapToICO(bmp), "ico");
+  const c = toCanvas(bmp, o.width, to === "jpg" || to === "bmp" ? "#ffffff" : null);
+  if (to === "bmp") return out(name, canvasToBMP(c), "bmp");
+  return out(name, await canvasBlob(c, MIME[to], o.quality ?? 0.92));
 }
 
-$("go").onclick = async () => {
-  if (!file) return;
-  $("go").disabled = true;
-  $("result").classList.remove("show");
-  const t0 = performance.now();
-  try {
-    const blob = engineFor() === "canvas" ? await convertCanvas() : await convertFFmpeg();
-    showResult(blob);
-    status(`완료 · ${(blob.size / 1048576).toFixed(2)}MB · ${((performance.now() - t0) / 1000).toFixed(1)}초`);
-  } catch (e) {
-    console.error(e);
-    status(e.message || String(e), true);
-  } finally {
-    progress(null);
-    $("go").disabled = false;
+/* =========================================================
+   PDF
+   ========================================================= */
+function parseRange(str, n) {
+  const set = [];
+  for (const part of String(str || "").split(",").map(s => s.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d+)?\s*-\s*(\d+)?$/);
+    let a, b;
+    if (m) { a = +(m[1] || 1); b = +(m[2] || n); } else { a = b = +part; }
+    if (!a || !b) throw new Error(`페이지 범위를 이해하지 못했습니다: "${part}"`);
+    for (let i = Math.min(a, b); i <= Math.max(a, b); i++) if (i >= 1 && i <= n && !set.includes(i - 1)) set.push(i - 1);
   }
+  if (!set.length) throw new Error("선택된 페이지가 없습니다.");
+  return set;
+}
+async function loadPdfLib(file) {
+  const { PDFDocument } = await L.pdflib();
+  try { return await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true }); }
+  catch (e) { throw new Error(`${file.name}: PDF를 열 수 없습니다. (${e.message})`); }
+}
+async function pdfToImages(file, to, o) {
+  const doc = await openPdfjs(file), res = [], n = doc.numPages;
+  const pages = o.range ? parseRange(o.range, n).map(i => i + 1) : [...Array(n)].map((_, i) => i + 1);
+  for (const [k, i] of pages.entries()) {
+    status(`${file.name} · ${i}페이지 그리는 중 (${k + 1}/${pages.length})`); progress((k + 1) / pages.length);
+    const page = await doc.getPage(i), vp = page.getViewport({ scale: o.scale || 2 });
+    const c = document.createElement("canvas"); c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+    const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    res.push(out(`${baseOf(file.name)}_p${String(i).padStart(3, "0")}.${to}`, await canvasBlob(c, MIME[to], 0.92)));
+  }
+  return res;
+}
+async function pdfToText(file) {
+  const doc = await openPdfjs(file), parts = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    status(`${file.name} · 텍스트 추출 ${i}/${doc.numPages}`);
+    const tc = await (await doc.getPage(i)).getTextContent();
+    let s = ""; for (const it of tc.items) { s += it.str; if (it.hasEOL) s += "\n"; }
+    parts.push(`----- ${i} 페이지 -----\n${s.trim()}`);
+  }
+  const text = parts.join("\n\n");
+  if (!text.replace(/-+ \d+ 페이지 -+/g, "").trim()) note("텍스트가 없습니다. 스캔한 PDF는 글자가 이미지라서 추출되지 않습니다.");
+  return out(`${baseOf(file.name)}.txt`, encodeText(text), "txt");
+}
+async function imagesToPdf(files, o) {
+  const { PDFDocument } = await L.pdflib(), doc = await PDFDocument.create();
+  for (const [k, f] of files.entries()) {
+    status(`이미지 넣는 중 ${k + 1}/${files.length} · ${f.name}`); progress((k + 1) / files.length);
+    const c = toCanvas(await decodeImage(f), 0, "#ffffff");
+    const img = await doc.embedJpg(await (await canvasBlob(c, "image/jpeg", 0.92)).arrayBuffer());
+    if (o.page === "a4") {
+      const land = img.width > img.height, pw = land ? 841.89 : 595.28, ph = land ? 595.28 : 841.89, m = 24;
+      const s = Math.min((pw - 2 * m) / img.width, (ph - 2 * m) / img.height);
+      doc.addPage([pw, ph]).drawImage(img, { x: (pw - img.width * s) / 2, y: (ph - img.height * s) / 2, width: img.width * s, height: img.height * s });
+    } else {
+      const w = img.width * 0.75, h = img.height * 0.75;
+      doc.addPage([w, h]).drawImage(img, { x: 0, y: 0, width: w, height: h });
+    }
+  }
+  return [out(`${baseOf(files[0].name)}${files.length > 1 ? "_외" + (files.length - 1) : ""}.pdf`, await doc.save(), "pdf")];
+}
+async function pdfMerge(files) {
+  const { PDFDocument } = await L.pdflib(), doc = await PDFDocument.create();
+  for (const [k, f] of files.entries()) {
+    status(`합치는 중 ${k + 1}/${files.length} · ${f.name}`);
+    const src = await loadPdfLib(f);
+    (await doc.copyPages(src, src.getPageIndices())).forEach(p => doc.addPage(p));
+  }
+  return [out("merged.pdf", await doc.save(), "pdf")];
+}
+async function pdfSplit(file) {
+  const { PDFDocument } = await L.pdflib(), src = await loadPdfLib(file), res = [], n = src.getPageCount();
+  for (let i = 0; i < n; i++) {
+    status(`나누는 중 ${i + 1}/${n}`);
+    const d = await PDFDocument.create(); d.addPage((await d.copyPages(src, [i]))[0]);
+    res.push(out(`${baseOf(file.name)}_p${String(i + 1).padStart(3, "0")}.pdf`, await d.save(), "pdf"));
+  }
+  return res;
+}
+async function pdfExtract(file, o) {
+  const { PDFDocument } = await L.pdflib(), src = await loadPdfLib(file);
+  const idx = parseRange(o.range, src.getPageCount()), d = await PDFDocument.create();
+  (await d.copyPages(src, idx)).forEach(p => d.addPage(p));
+  return out(`${baseOf(file.name)}_추출.pdf`, await d.save(), "pdf");
+}
+async function pdfRotate(file, o) {
+  const { degrees } = await L.pdflib(), doc = await loadPdfLib(file);
+  const idx = o.range ? parseRange(o.range, doc.getPageCount()) : doc.getPageIndices();
+  for (const i of idx) { const p = doc.getPage(i); p.setRotation(degrees((p.getRotation().angle + +o.angle) % 360)); }
+  return out(`${baseOf(file.name)}_회전.pdf`, await doc.save(), "pdf");
+}
+
+/* =========================================================
+   한글(HWP 5.0) — OLE 복합 문서 직접 해석
+   ========================================================= */
+function readCFB(buf) {
+  const u = new Uint8Array(buf), dv = new DataView(buf);
+  if (dv.getUint32(0, true) !== 0xE011CFD0) throw new Error("HWP(5.0) 파일이 아닙니다. HWP 3.0 이하 옛 형식은 지원하지 않습니다.");
+  const ss = 1 << dv.getUint16(0x1E, true), mss = 1 << dv.getUint16(0x20, true), per = ss / 4;
+  const nFat = dv.getUint32(0x2C, true), dirStart = dv.getUint32(0x30, true), cutoff = dv.getUint32(0x38, true);
+  const mfStart = dv.getUint32(0x3C, true), nMf = dv.getUint32(0x40, true), nDif = dv.getUint32(0x48, true);
+  const off = s => (s + 1) * ss;
+  const fatSecs = [];
+  for (let i = 0; i < 109 && fatSecs.length < nFat; i++) fatSecs.push(dv.getUint32(0x4C + i * 4, true));
+  for (let k = 0, d = dv.getUint32(0x44, true); k < nDif && fatSecs.length < nFat; k++) {
+    for (let i = 0; i < per - 1 && fatSecs.length < nFat; i++) fatSecs.push(dv.getUint32(off(d) + i * 4, true));
+    d = dv.getUint32(off(d) + ss - 4, true);
+  }
+  const fat = new Uint32Array(fatSecs.length * per);
+  fatSecs.forEach((s, i) => { for (let j = 0; j < per; j++) fat[i * per + j] = dv.getUint32(off(s) + j * 4, true); });
+  const chain = (start, tbl) => { const r = []; for (let s = start; s < 0xFFFFFFFA && s < tbl.length && r.length < 1e6; s = tbl[s]) r.push(s); return r; };
+  const readChain = start => {
+    const secs = chain(start, fat), o = new Uint8Array(secs.length * ss);
+    secs.forEach((s, i) => o.set(u.subarray(off(s), off(s) + ss), i * ss)); return o;
+  };
+  const dir = readChain(dirStart), ddv = new DataView(dir.buffer), entries = [];
+  for (let o = 0; o + 128 <= dir.length; o += 128) {
+    const nl = ddv.getUint16(o + 0x40, true); let name = "";
+    for (let j = 0; j < nl / 2 - 1; j++) name += String.fromCharCode(ddv.getUint16(o + j * 2, true));
+    entries.push({ name, type: dir[o + 0x42], left: ddv.getUint32(o + 0x44, true), right: ddv.getUint32(o + 0x48, true),
+      child: ddv.getUint32(o + 0x4C, true), start: ddv.getUint32(o + 0x74, true), size: ddv.getUint32(o + 0x78, true) });
+  }
+  const mini = readChain(entries[0].start);
+  let minifat = new Uint32Array(0);
+  if (nMf) { const b = readChain(mfStart), d2 = new DataView(b.buffer); minifat = new Uint32Array(b.length / 4); for (let i = 0; i < minifat.length; i++) minifat[i] = d2.getUint32(i * 4, true); }
+  const files = {}, seen = new Set();
+  const walk = (idx, path) => {
+    if (idx >= entries.length || seen.has(idx)) return; seen.add(idx);
+    const e = entries[idx]; walk(e.left, path); walk(e.right, path);
+    if (e.type === 2) files[path + e.name] = e; else if (e.type === 1) walk(e.child, path + e.name + "/");
+  };
+  walk(entries[0].child, "");
+  const get = p => {
+    const e = files[p]; if (!e) return null;
+    if (e.size < cutoff) {
+      const secs = chain(e.start, minifat), o = new Uint8Array(secs.length * mss);
+      secs.forEach((s, i) => o.set(mini.subarray(s * mss, (s + 1) * mss), i * mss)); return o.subarray(0, e.size);
+    }
+    return readChain(e.start).subarray(0, e.size);
+  };
+  return { files, get };
+}
+function hwpParaText(dv, p, size) {
+  let s = ""; const end = p + size;
+  while (p + 1 < end) {
+    const c = dv.getUint16(p, true);
+    if (c >= 32) { s += String.fromCharCode(c); p += 2; continue; }
+    if (c === 10) { s += "\n"; p += 2; }
+    else if (c === 13 || c === 0 || (c >= 24 && c <= 31)) p += 2;   // 1칸짜리 제어문자
+    else { if (c === 9) s += "\t"; p += 16; }                         // 8칸짜리 인라인·확장 제어문자
+  }
+  return s;
+}
+async function hwpParagraphs(file) {
+  const cfb = readCFB(await file.arrayBuffer()), fh = cfb.get("FileHeader");
+  if (!fh || !new TextDecoder().decode(fh.subarray(0, 17)).startsWith("HWP Document File")) throw new Error("한글 문서가 아닙니다.");
+  const props = new DataView(fh.buffer, fh.byteOffset, fh.byteLength).getUint32(36, true);
+  if (props & 2) throw new Error("암호가 걸린 한글 문서는 변환할 수 없습니다.");
+  if (props & 4) throw new Error("배포용(편집 제한) 한글 문서는 변환할 수 없습니다.");
+  const ff = await L.fflate();
+  const sections = Object.keys(cfb.files).filter(n => /^BodyText\/Section\d+$/.test(n)).sort((a, b) => a.match(/\d+$/)[0] - b.match(/\d+$/)[0]);
+  const paras = [];
+  for (const n of sections) {
+    let d = cfb.get(n); if (props & 1) d = ff.inflateSync(d);
+    const dv = new DataView(d.buffer, d.byteOffset, d.byteLength);
+    for (let p = 0; p + 4 <= d.length;) {
+      const h = dv.getUint32(p, true); p += 4;
+      let size = h >>> 20; if (size === 0xFFF) { size = dv.getUint32(p, true); p += 4; }
+      if ((h & 0x3FF) === 67) paras.push(hwpParaText(dv, p, size));   // HWPTAG_PARA_TEXT
+      p += size;
+    }
+  }
+  return paras;
+}
+async function hwpxParagraphs(file) {
+  const ff = await L.fflate(), zip = ff.unzipSync(new Uint8Array(await file.arrayBuffer()));
+  const secs = Object.keys(zip).filter(n => /^Contents\/section\d+\.xml$/i.test(n)).sort((a, b) => a.match(/(\d+)\.xml$/i)[1] - b.match(/(\d+)\.xml$/i)[1]);
+  if (!secs.length) throw new Error("HWPX 본문을 찾지 못했습니다.");
+  const paras = [];
+  for (const s of secs) {
+    const doc = new DOMParser().parseFromString(ff.strFromU8(zip[s]), "application/xml");
+    const stack = [];
+    const walk = node => {
+      for (const c of node.childNodes) {
+        if (c.nodeType === 3 && stack.length && c.parentNode.localName === "t") { stack[stack.length - 1].push(c.nodeValue); continue; }
+        if (c.nodeType !== 1) continue;
+        const ln = c.localName;
+        if (ln === "p") { stack.push([]); walk(c); paras.push(stack.pop().join("")); continue; }
+        if (stack.length && ln === "tab") stack[stack.length - 1].push("\t");
+        if (stack.length && ln === "lineBreak") stack[stack.length - 1].push("\n");
+        walk(c);
+      }
+    };
+    walk(doc.documentElement);
+  }
+  return paras;
+}
+const parasToText = ps => ps.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+const parasToHtml = (title, ps) => htmlDoc(title, ps.map(p => p.trim() ? `<p>${esc(p).replace(/\n/g, "<br>").replace(/\t/g, "&emsp;")}</p>` : "").join("\n"));
+
+/* =========================================================
+   데이터 (엑셀·CSV·JSON·YAML·XML)
+   ========================================================= */
+function flatten(obj, pre = "", res = {}) {
+  for (const [k, v] of Object.entries(obj)) {
+    const key = pre ? `${pre}.${k}` : k;
+    if (v && typeof v === "object" && !Array.isArray(v)) flatten(v, key, res);
+    else res[key] = Array.isArray(v) ? JSON.stringify(v) : v;
+  }
+  return res;
+}
+function toRows(data) {
+  if (Array.isArray(data)) return data.map(r => r && typeof r === "object" ? flatten(r) : { value: r });
+  if (data && typeof data === "object") {
+    const arr = Object.values(data).find(Array.isArray);
+    return arr ? toRows(arr) : [flatten(data)];
+  }
+  return [{ value: data }];
+}
+function xmlToObj(node) {
+  const o = {}; let text = "";
+  for (const a of node.attributes || []) o["@" + a.name] = a.value;
+  for (const c of node.childNodes) {
+    if (c.nodeType === 1) {
+      const v = xmlToObj(c);
+      if (c.nodeName in o) { if (!Array.isArray(o[c.nodeName])) o[c.nodeName] = [o[c.nodeName]]; o[c.nodeName].push(v); }
+      else o[c.nodeName] = v;
+    } else if (c.nodeType === 3 || c.nodeType === 4) text += c.nodeValue;
+  }
+  text = text.trim();
+  if (!Object.keys(o).length) return text;
+  if (text) o["#text"] = text;
+  return o;
+}
+function parseXml(str) {
+  const doc = new DOMParser().parseFromString(str, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("XML 형식이 올바르지 않습니다.");
+  return { [doc.documentElement.nodeName]: xmlToObj(doc.documentElement) };
+}
+const xmlName = n => { n = String(n).replace(/[^\w.\-:가-힣]/g, "_"); return /^[a-zA-Z_가-힣]/.test(n) ? n : "_" + n; };
+const xmlEsc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
+function objToXml(v, name, ind = "") {
+  const tag = xmlName(name);
+  if (Array.isArray(v)) return v.map(x => objToXml(x, name, ind)).join("");
+  if (v && typeof v === "object") {
+    let attrs = "", kids = "", text = "";
+    for (const [k, x] of Object.entries(v)) {
+      if (k.startsWith("@")) attrs += ` ${xmlName(k.slice(1))}="${xmlEsc(x)}"`;
+      else if (k === "#text") text = xmlEsc(x);
+      else kids += objToXml(x, k, ind + "  ");
+    }
+    return kids ? `${ind}<${tag}${attrs}>${text}\n${kids}${ind}</${tag}>\n` : `${ind}<${tag}${attrs}>${text}</${tag}>\n`;
+  }
+  return `${ind}<${tag}>${xmlEsc(v ?? "")}</${tag}>\n`;
+}
+function toXml(data) {
+  let body;
+  if (data && typeof data === "object" && !Array.isArray(data) && Object.keys(data).length === 1) {
+    const k = Object.keys(data)[0]; body = objToXml(data[k], k);
+  } else body = objToXml(Array.isArray(data) ? { item: data } : data, "root");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${body}`;
+}
+async function readData(file, from) {
+  const text = await readText(file);
+  try {
+    if (from === "json") return JSON.parse(text);
+    if (from === "yaml") return (await L.yaml()).load(text);
+    if (from === "xml") return parseXml(text);
+  } catch (e) { throw new Error(`${file.name}: 읽을 수 없습니다. (${e.message})`); }
+}
+async function readWorkbook(file, from) {
+  const X = await L.xlsx();
+  if (from === "csv") return X.read(await readText(file), { type: "string", raw: true });
+  return X.read(new Uint8Array(await file.arrayBuffer()), { type: "array" });
+}
+async function writeRows(rows, base, to, o) {
+  const X = await L.xlsx(), ws = X.utils.json_to_sheet(rows);
+  if (to === "csv") return out(`${base}.csv`, encodeText(X.utils.sheet_to_csv(ws), o.enc), "csv");
+  const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, "Sheet1");
+  return out(`${base}.${to}`, X.write(wb, { type: "array", bookType: to }), to);
+}
+async function convertData(file, from, to, o) {
+  const base = baseOf(file.name);
+  if (from === "xlsx" || from === "csv") {
+    const X = await L.xlsx(), wb = await readWorkbook(file, from), names = wb.SheetNames;
+    if (to === "csv") return names.map(n => out(names.length > 1 ? `${base}_${n}.csv` : `${base}.csv`, encodeText(X.utils.sheet_to_csv(wb.Sheets[n]), o.enc), "csv"));
+    if (to === "xlsx" || to === "ods") return out(`${base}.${to}`, X.write(wb, { type: "array", bookType: to }), to);
+    if (to === "html") return out(`${base}.html`, encodeText(htmlDoc(base, names.map(n => `<h2>${esc(n)}</h2>` + X.utils.sheet_to_html(wb.Sheets[n], { header: "", footer: "" }).replace(/^[\s\S]*?<body>|<\/body>[\s\S]*$/g, "")).join("\n"))), "html");
+    const obj = names.length === 1 ? X.utils.sheet_to_json(wb.Sheets[names[0]], { defval: "" }) : Object.fromEntries(names.map(n => [n, X.utils.sheet_to_json(wb.Sheets[n], { defval: "" })]));
+    return writeObj(obj, base, to, o);
+  }
+  return writeObj(await readData(file, from), base, to, o);
+}
+async function writeObj(obj, base, to, o) {
+  if (to === "json") return out(`${base}.json`, encodeText(JSON.stringify(obj, null, 2)), "json");
+  if (to === "yaml") return out(`${base}.yaml`, encodeText((await L.yaml()).dump(obj, { lineWidth: -1 })), "yaml");
+  if (to === "xml") return out(`${base}.xml`, encodeText(toXml(obj)), "xml");
+  return writeRows(toRows(obj), base, to, o);
+}
+
+/* =========================================================
+   자막 (SRT·VTT·SMI·ASS)
+   ========================================================= */
+function parseTime(t) { let s = 0; for (const p of String(t).trim().replace(",", ".").split(":")) s = s * 60 + parseFloat(p || 0); return Math.round(s * 1000); }
+function fmtTime(ms, sep) { ms = Math.max(0, Math.round(ms)); return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms / 60000) % 60)}:${pad(Math.floor(ms / 1000) % 60)}${sep}${String(ms % 1000).padStart(3, "0")}`; }
+function assTime(ms) { ms = Math.max(0, Math.round(ms)); return `${Math.floor(ms / 3600000)}:${pad(Math.floor(ms / 60000) % 60)}:${pad(Math.floor(ms / 1000) % 60)}.${pad(Math.floor(ms % 1000 / 10))}`; }
+function decodeEntities(s) { const t = document.createElement("textarea"); t.innerHTML = s; return t.value; }
+
+function parseSrtVtt(t) {
+  const cues = [];
+  for (const b of t.replace(/\r/g, "").split(/\n[ \t]*\n/)) {
+    const lines = b.split("\n"), i = lines.findIndex(l => l.includes("-->"));
+    if (i < 0) continue;
+    const [a, c] = lines[i].split("-->");
+    const text = lines.slice(i + 1).join("\n").replace(/<[^>]+>/g, "").trim();
+    if (text) cues.push({ start: parseTime(a), end: parseTime(c.trim().split(/\s+/)[0]), text });
+  }
+  return cues;
+}
+function parseSmi(t) {
+  const re = /<sync[^>]*start\s*=\s*["']?(\d+)[^>]*>([\s\S]*?)(?=<sync|<\/body|$)/gi, syncs = [];
+  let m, firstClass = null;
+  while ((m = re.exec(t))) {
+    const cm = m[2].match(/<p[^>]*class\s*=\s*["']?([\w-]+)/i), cls = cm ? cm[1].toLowerCase() : null;
+    if (cls) { if (firstClass === null) firstClass = cls; else if (cls !== firstClass) continue; }   // 다국어 SMI는 첫 언어만
+    const text = decodeEntities(m[2].replace(/\r?\n/g, "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, ""))
+      .split("\n").map(s => s.replace(/\s+/g, " ").trim()).join("\n").trim();
+    syncs.push({ t: +m[1], text });
+  }
+  syncs.sort((a, b) => a.t - b.t);
+  return syncs.map((s, i) => s.text ? { start: s.t, end: syncs[i + 1] ? syncs[i + 1].t : s.t + 3000, text: s.text } : null).filter(Boolean);
+}
+function parseAss(t) {
+  const cues = []; let fmt = null, inEv = false;
+  for (const line of t.replace(/\r/g, "").split("\n")) {
+    const l = line.trim();
+    if (/^\[events\]/i.test(l)) { inEv = true; continue; }
+    if (/^\[/.test(l)) { inEv = false; continue; }
+    if (!inEv) continue;
+    if (/^format:/i.test(l)) { fmt = l.slice(7).split(",").map(s => s.trim().toLowerCase()); continue; }
+    if (!/^dialogue:/i.test(l)) continue;
+    const f = fmt || ["layer", "start", "end", "style", "name", "marginl", "marginr", "marginv", "effect", "text"];
+    const parts = l.slice(9).split(","), vals = parts.slice(0, f.length - 1).concat(parts.slice(f.length - 1).join(","));
+    const g = k => (vals[f.indexOf(k)] || "").trim();
+    const text = g("text").replace(/\{[^}]*\}/g, "").replace(/\\N/gi, "\n").replace(/\\h/g, " ").trim();
+    if (text) cues.push({ start: parseTime(g("start")), end: parseTime(g("end")), text });
+  }
+  return cues.sort((a, b) => a.start - b.start);
+}
+function writeSubs(cues, to) {
+  switch (to) {
+    case "srt": return cues.map((c, i) => `${i + 1}\n${fmtTime(c.start, ",")} --> ${fmtTime(c.end, ",")}\n${c.text}\n`).join("\n");
+    case "vtt": return "WEBVTT\n\n" + cues.map(c => `${fmtTime(c.start, ".")} --> ${fmtTime(c.end, ".")}\n${c.text}\n`).join("\n");
+    case "txt": return cues.map(c => c.text).join("\n") + "\n";
+    case "smi": {
+      let s = '<SAMI>\n<HEAD>\n<TITLE></TITLE>\n<STYLE TYPE="text/css">\n<!--\nP { margin-left:8pt; margin-right:8pt; margin-bottom:2pt; margin-top:2pt; text-align:center; font-size:20pt; font-family:sans-serif; }\n.KRCC { Name:한국어; lang:ko-KR; SAMIType:CC; }\n-->\n</STYLE>\n</HEAD>\n<BODY>\n';
+      cues.forEach((c, i) => {
+        s += `<SYNC Start=${c.start}><P Class=KRCC>${esc(c.text).replace(/\n/g, "<br>")}\n`;
+        if (!cues[i + 1] || cues[i + 1].start > c.end) s += `<SYNC Start=${c.end}><P Class=KRCC>&nbsp;\n`;
+      });
+      return s + "</BODY>\n</SAMI>\n";
+    }
+    case "ass": return "[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\n" +
+      "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n" +
+      "Style: Default,Malgun Gothic,64,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,0,0,0,0,100,100,0,0,1,3,1,2,40,40,50,1\n\n[Events]\n" +
+      "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" +
+      cues.map(c => `Dialogue: 0,${assTime(c.start)},${assTime(c.end)},Default,,0,0,0,,${c.text.replace(/\n/g, "\\N")}`).join("\n") + "\n";
+  }
+}
+async function convertSubs(file, from, to, o) {
+  const text = await readText(file);
+  let cues = from === "smi" ? parseSmi(text) : from === "ass" ? parseAss(text) : parseSrtVtt(text);
+  if (!cues.length) throw new Error(`${file.name}: 자막을 찾지 못했습니다.`);
+  const shift = +o.shift || 0;
+  if (shift) cues = cues.map(c => ({ ...c, start: c.start + shift, end: c.end + shift })).filter(c => c.end > 0);
+  return out(`${baseOf(file.name)}.${to}`, encodeText(writeSubs(cues, to), o.enc), to);
+}
+
+/* =========================================================
+   압축 (ZIP·GZ)
+   ========================================================= */
+function fixZipName(n) {   // 윈도우에서 만든 ZIP의 한글 파일명(CP949) 깨짐 복구
+  if (![...n].some(c => c.charCodeAt(0) > 127) || [...n].some(c => c.charCodeAt(0) > 255)) return n;
+  const b = Uint8Array.from(n, c => c.charCodeAt(0));
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch { return new TextDecoder("euc-kr").decode(b); }
+}
+function uniqueNames(items) {
+  const used = new Set();
+  return items.map(it => {
+    let n = it.name, i = 1;
+    while (used.has(n)) n = it.name.replace(/(\.[^.]*)?$/, m => `(${i++})${m}`);
+    used.add(n); return { ...it, name: n };
+  });
+}
+async function makeZip(items) {
+  const ff = await L.fflate(), obj = {};
+  for (const it of uniqueNames(items)) obj[it.name] = [new Uint8Array(await it.blob.arrayBuffer()), { level: /\.(jpg|png|gif|webp|mp4|mp3|zip|gz|woff2?|pdf|docx|xlsx|hwpx)$/i.test(it.name) ? 0 : 6 }];
+  return blobOf(ff.zipSync(obj), "zip");
+}
+
+/* =========================================================
+   폰트 (TTF/OTF ↔ WOFF)
+   ========================================================= */
+async function sfntToWoff(file) {
+  const ff = await L.fflate(), buf = await file.arrayBuffer(), dv = new DataView(buf), u = new Uint8Array(buf);
+  const flavor = dv.getUint32(0), n = dv.getUint16(4);
+  if (![0x00010000, 0x4F54544F, 0x74727565].includes(flavor)) throw new Error("TTF/OTF 폰트가 아닙니다. (TTC 묶음 폰트는 지원하지 않습니다)");
+  const tables = [];
+  for (let i = 0; i < n; i++) {
+    const r = 12 + i * 16, tag = dv.getUint32(r), sum = dv.getUint32(r + 4), o = dv.getUint32(r + 8), len = dv.getUint32(r + 12);
+    const raw = u.subarray(o, o + len), z = ff.zlibSync(raw, { level: 9 });
+    tables.push({ tag, sum, len, data: z.length < len ? z : raw });
+  }
+  tables.sort((a, b) => a.tag - b.tag);
+  const a4 = x => (x + 3) & ~3;
+  let total = 44 + 20 * n; tables.forEach(t => total += a4(t.data.length));
+  const o = new Uint8Array(total), od = new DataView(o.buffer);
+  od.setUint32(0, 0x774F4646); od.setUint32(4, flavor); od.setUint32(8, total); od.setUint16(12, n);
+  od.setUint32(16, 12 + 16 * n + tables.reduce((s, t) => s + a4(t.len), 0)); od.setUint16(20, 1);
+  let off = 44 + 20 * n;
+  tables.forEach((t, i) => {
+    const e = 44 + i * 20;
+    od.setUint32(e, t.tag); od.setUint32(e + 4, off); od.setUint32(e + 8, t.data.length); od.setUint32(e + 12, t.len); od.setUint32(e + 16, t.sum);
+    o.set(t.data, off); off += a4(t.data.length);
+  });
+  return out(`${baseOf(file.name)}.woff`, o, "woff");
+}
+async function woffToSfnt(file) {
+  const ff = await L.fflate(), buf = await file.arrayBuffer(), dv = new DataView(buf), u = new Uint8Array(buf);
+  const sig = dv.getUint32(0);
+  if (sig === 0x774F4632) throw new Error("WOFF2 파일은 아직 지원하지 않습니다. (WOFF만 가능)");
+  if (sig !== 0x774F4646) throw new Error("WOFF 파일이 아닙니다.");
+  const flavor = dv.getUint32(4), n = dv.getUint16(12), tables = [];
+  for (let i = 0; i < n; i++) {
+    const e = 44 + i * 20, o = dv.getUint32(e + 4), cl = dv.getUint32(e + 8), ol = dv.getUint32(e + 12);
+    const raw = u.subarray(o, o + cl);
+    tables.push({ tag: dv.getUint32(e), sum: dv.getUint32(e + 16), data: cl < ol ? ff.unzlibSync(raw) : raw });
+  }
+  const a4 = x => (x + 3) & ~3, lg = Math.floor(Math.log2(n)), sr = (1 << lg) * 16;
+  let total = 12 + 16 * n; tables.forEach(t => total += a4(t.data.length));
+  const o = new Uint8Array(total), od = new DataView(o.buffer);
+  od.setUint32(0, flavor); od.setUint16(4, n); od.setUint16(6, sr); od.setUint16(8, lg); od.setUint16(10, n * 16 - sr);
+  let off = 12 + 16 * n;
+  tables.forEach((t, i) => {
+    const r = 12 + i * 16;
+    od.setUint32(r, t.tag); od.setUint32(r + 4, t.sum); od.setUint32(r + 8, off); od.setUint32(r + 12, t.data.length);
+    o.set(t.data, off); off += a4(t.data.length);
+  });
+  const ext = flavor === 0x4F54544F ? "otf" : "ttf";
+  return out(`${baseOf(file.name)}.${ext}`, o, ext);
+}
+
+/* =========================================================
+   변환 목록
+   ========================================================= */
+const CATS = [
+  ["media", "영상·음성"], ["image", "이미지"], ["pdf", "PDF"], ["doc", "문서·한글"],
+  ["data", "엑셀·데이터"], ["sub", "자막"], ["zip", "압축"], ["font", "폰트"]
+];
+// 각 분야의 원본 형식: [키, 표시 이름, 허용 확장자]
+const FROMS = {
+  media: [["mp4", "MP4", "mp4,m4v"], ["mov", "MOV (아이폰)", "mov"], ["webm", "WebM", "webm"], ["mkv", "MKV", "mkv"], ["avi", "AVI", "avi"],
+          ["gif", "GIF (움짤)", "gif"], ["mp3", "MP3", "mp3"], ["wav", "WAV", "wav"], ["m4a", "M4A", "m4a"], ["flac", "FLAC", "flac"],
+          ["ogg", "OGG", "ogg,oga"], ["aac", "AAC", "aac"], ["opus", "OPUS", "opus"]],
+  image: [["heic", "HEIC (아이폰 사진)", "heic,heif"], ["png", "PNG", "png"], ["jpg", "JPG", "jpg,jpeg"], ["webp", "WebP", "webp"],
+          ["avif", "AVIF", "avif"], ["gif", "GIF (첫 장면)", "gif"], ["bmp", "BMP", "bmp"], ["svg", "SVG", "svg"], ["tiff", "TIFF", "tif,tiff"]],
+  pdf:   [["pdf", "PDF", "pdf"], ["img", "이미지 (JPG·PNG·HEIC 등)", "jpg,jpeg,png,webp,heic,heif,bmp,gif,avif"]],
+  doc:   [["hwp", "HWP (한글)", "hwp"], ["hwpx", "HWPX (한글)", "hwpx"], ["docx", "DOCX (워드)", "docx"], ["md", "Markdown", "md,markdown"],
+          ["html", "HTML", "html,htm"], ["text", "텍스트 (인코딩 변환)", "txt,csv,srt,smi,ass,vtt,md,html,htm,json,xml,log,tsv,ini"]],
+  data:  [["xlsx", "엑셀 (XLSX·XLS·ODS)", "xlsx,xls,xlsm,ods"], ["csv", "CSV", "csv,tsv"], ["json", "JSON", "json"], ["yaml", "YAML", "yaml,yml"], ["xml", "XML", "xml"]],
+  sub:   [["smi", "SMI", "smi,sami"], ["srt", "SRT", "srt"], ["vtt", "VTT", "vtt"], ["ass", "ASS·SSA", "ass,ssa"]],
+  zip:   [["files", "여러 파일", "*"], ["zip", "ZIP", "zip"], ["gz", "GZ", "gz"]],
+  font:  [["ttf", "TTF·OTF", "ttf,otf"], ["woff", "WOFF", "woff,woff2"]],
 };
 
-function showResult(blob) {
-  if (lastURL) URL.revokeObjectURL(lastURL);
-  lastURL = URL.createObjectURL(blob);
-  const t = toSel.value, pv = $("preview");
-  pv.innerHTML = "";
+// 옵션 묶음
+const O = {
+  trim: [{ id: "start", label: "시작 (초, 비우면 처음)", type: "text" }, { id: "end", label: "끝 (초, 비우면 끝까지)", type: "text" }],
+  gif: [{ id: "fps", label: "초당 프레임", type: "number", value: 12, min: 1, max: 30 }, { id: "width", label: "가로 크기(px)", type: "number", value: 480, min: 50, max: 1920 }],
+  video: [{ id: "width", label: "가로 크기(px, 0=원본)", type: "number", value: 0, min: 0, max: 3840 },
+          { id: "crf", label: "화질 (18 좋음 ~ 32 작음)", type: "number", value: 23, min: 15, max: 40 }],
+  frames: [{ id: "fps", label: "초당 몇 장", type: "number", value: 1, min: 0.1, max: 30, step: 0.1 }, { id: "width", label: "가로 크기(px, 0=원본)", type: "number", value: 0, min: 0, max: 3840 }],
+  bitrate: [{ id: "bitrate", label: "음질", type: "select", value: "192k", choices: [["128k", "128kbps"], ["192k", "192kbps"], ["256k", "256kbps"], ["320k", "320kbps"]] }],
+  imgW: [{ id: "width", label: "가로 크기(px, 0=원본)", type: "number", value: 0, min: 0, max: 10000 }],
+  quality: [{ id: "quality", label: "품질 (0.1~1)", type: "number", value: 0.9, min: 0.1, max: 1, step: 0.05 }],
+  range: (label = "페이지 범위 (예: 1-3,5)", value = "") => [{ id: "range", label, type: "text", value }],
+  enc: (dflt = "utf8") => [{ id: "enc", label: "저장 인코딩", type: "select", value: dflt, choices: [["utf8", "UTF-8"], ["utf8bom", "UTF-8 (BOM, 엑셀용)"], ["euckr", "EUC-KR (옛 프로그램용)"]] }],
+};
+
+const CONVS = [];
+const add = (cat, from, to, toLabel, run, extra = {}) => CONVS.push({ cat, from, to, toLabel, run, ...extra });
+// 파일마다 따로 변환하는 일괄 처리
+const each = fn => async (files, o, c) => { const res = []; for (const [i, f] of files.entries()) { if (files.length > 1) status(`${i + 1}/${files.length} · ${f.name}`); res.push(...[].concat(await fn(f, o, c))); } return res; };
+
+// 영상·음성
+const VIDEOS = ["mp4", "mov", "webm", "mkv", "avi"], AUDIOS = ["mp3", "wav", "m4a", "flac", "ogg", "aac", "opus"];
+const AUDIO_LABEL = { mp3: "MP3", wav: "WAV (무손실)", m4a: "M4A", flac: "FLAC (무손실)", ogg: "OGG", aac: "AAC", opus: "OPUS" };
+const lossy = t => ["mp3", "m4a", "aac", "opus"].includes(t);
+const ff = to => each((f, o) => ffConvert(f, to, o));
+for (const v of VIDEOS) {
+  add("media", v, "mp4", v === "mp4" ? "MP4 (용량 줄이기·자르기)" : "MP4", ff("mp4"), { batch: true, opts: [...O.video, ...O.trim] });
+  if (v !== "webm") add("media", v, "webm", "WebM", ff("webm"), { batch: true, opts: [...O.trim] });
+  if (v !== "mkv") add("media", v, "mkv", "MKV", ff("mkv"), { batch: true, opts: [...O.video, ...O.trim] });
+  add("media", v, "gif", "GIF (움짤)", ff("gif"), { batch: true, opts: [...O.gif, ...O.trim], desc: "팔레트를 따로 뽑아 색이 덜 깨지는 방식입니다. 길면 용량이 커지니 구간을 자르는 걸 추천합니다." });
+  add("media", v, "frames", "JPG 이미지 (장면 캡처)", ff("frames"), { batch: true, opts: [...O.frames, ...O.trim] });
+  for (const a of AUDIOS) add("media", v, a, `${AUDIO_LABEL[a]} (소리만 추출)`, ff(a), { batch: true, opts: [...(lossy(a) ? O.bitrate : []), ...O.trim] });
+}
+add("media", "gif", "mp4", "MP4", ff("mp4"), { batch: true, opts: O.video, desc: "GIF를 MP4로 바꾸면 보통 용량이 크게 줄어듭니다." });
+add("media", "gif", "webm", "WebM", ff("webm"), { batch: true });
+add("media", "gif", "gif", "GIF (용량 줄이기)", ff("gif"), { batch: true, opts: [...O.gif, ...O.trim] });
+add("media", "gif", "frames", "JPG 이미지 (프레임 분리)", ff("frames"), { batch: true, opts: [{ ...O.frames[0], value: 10 }, O.frames[1]] });
+for (const a of AUDIOS) for (const b of AUDIOS) if (a !== b) add("media", a, b, AUDIO_LABEL[b], ff(b), { batch: true, opts: [...(lossy(b) ? O.bitrate : []), ...O.trim] });
+for (const a of AUDIOS) add("media", a, a, `${AUDIO_LABEL[a]} (구간 자르기)`, ff(a), { batch: true, opts: [...(lossy(a) ? O.bitrate : []), ...O.trim] });
+
+// 이미지
+const IMG_TO = [["jpg", "JPG"], ["png", "PNG"], ["webp", "WebP"], ["ico", "ICO (파비콘)"], ["bmp", "BMP"]];
+for (const [from] of FROMS.image) for (const [to, lab] of IMG_TO) {
+  if (from === to) continue;
+  const opts = to === "ico" ? [] : [...O.imgW, ...(to === "jpg" || to === "webp" ? O.quality : [])];
+  add("image", from, to, lab, each((f, o) => convertImage(f, to, o)), { batch: true, opts,
+    desc: to === "ico" ? "16~256px 여섯 가지 크기를 한 파일에 담습니다. 정사각형 이미지가 가장 좋습니다." : from === "heic" ? "아이폰 사진(HEIC)을 어디서나 열리는 형식으로 바꿉니다." : "" });
+}
+for (const [f] of [["png"], ["jpg"], ["webp"]]) add("image", f, f, "같은 형식 (크기 줄이기·압축)", each((x, o) => convertImage(x, f, o)), { batch: true, opts: [...O.imgW, ...(f !== "png" ? O.quality : [])] });
+
+// PDF
+add("pdf", "pdf", "jpg", "JPG (페이지별 이미지)", each((f, o) => pdfToImages(f, "jpg", o)), { batch: true, opts: [{ id: "scale", label: "해상도 배율", type: "select", value: "2", choices: [["1", "1배 (화면용)"], ["2", "2배"], ["3", "3배 (인쇄용)"]] }, ...O.range("페이지 범위 (비우면 전체)")] });
+add("pdf", "pdf", "png", "PNG (페이지별 이미지)", each((f, o) => pdfToImages(f, "png", o)), { batch: true, opts: [{ id: "scale", label: "해상도 배율", type: "select", value: "2", choices: [["1", "1배 (화면용)"], ["2", "2배"], ["3", "3배 (인쇄용)"]] }, ...O.range("페이지 범위 (비우면 전체)")] });
+add("pdf", "pdf", "txt", "TXT (글자 추출)", each(pdfToText), { batch: true });
+add("pdf", "pdf", "merge", "PDF 합치기", pdfMerge, { multi: 2, desc: "올린 순서대로 합쳐집니다. 목록에서 순서를 확인하세요." });
+add("pdf", "pdf", "split", "PDF 나누기 (한 쪽씩)", each(pdfSplit), { batch: true });
+add("pdf", "pdf", "extract", "PDF 일부 페이지만 뽑기", each(pdfExtract), { batch: true, opts: O.range("뽑을 페이지 (예: 1-3,5)", "1") });
+add("pdf", "pdf", "rotate", "PDF 회전", each(pdfRotate), { batch: true, opts: [{ id: "angle", label: "회전", type: "select", value: "90", choices: [["90", "오른쪽 90°"], ["180", "180°"], ["270", "왼쪽 90°"]] }, ...O.range("페이지 범위 (비우면 전체)")] });
+add("pdf", "img", "pdf", "PDF (이미지 → 한 파일)", (files, o) => imagesToPdf(files, o), { multi: 1, opts: [{ id: "page", label: "페이지 크기", type: "select", value: "fit", choices: [["fit", "이미지 크기 그대로"], ["a4", "A4에 맞추기"]] }], desc: "여러 장을 올리면 올린 순서대로 한 PDF가 됩니다." });
+
+// 문서·한글
+const hwpLike = (from, reader) => {
+  add("doc", from, "txt", "TXT (텍스트)", each(async (f, o) => out(`${baseOf(f.name)}.txt`, encodeText(parasToText(await reader(f)), o.enc), "txt")), { batch: true, opts: O.enc(), desc: "글자만 뽑아냅니다. 표 안의 글자도 포함되지만 서식·그림은 빠집니다." });
+  add("doc", from, "html", "HTML (웹 문서)", each(async f => out(`${baseOf(f.name)}.html`, encodeText(parasToHtml(baseOf(f.name), await reader(f))), "html")), { batch: true });
+};
+hwpLike("hwp", hwpParagraphs);
+hwpLike("hwpx", hwpxParagraphs);
+const docxHtml = async f => (await (await L.mammoth()).convertToHtml({ arrayBuffer: await f.arrayBuffer() })).value;
+const turndown = async html => { const T = await L.turndown(); return new T({ headingStyle: "atx", codeBlockStyle: "fenced" }).turndown(html); };
+add("doc", "docx", "html", "HTML (웹 문서)", each(async f => out(`${baseOf(f.name)}.html`, encodeText(htmlDoc(baseOf(f.name), await docxHtml(f))), "html")), { batch: true, desc: "그림은 HTML 안에 포함됩니다." });
+add("doc", "docx", "txt", "TXT (텍스트)", each(async (f, o) => out(`${baseOf(f.name)}.txt`, encodeText((await (await L.mammoth()).extractRawText({ arrayBuffer: await f.arrayBuffer() })).value, o.enc), "txt")), { batch: true, opts: O.enc() });
+add("doc", "docx", "md", "Markdown", each(async f => out(`${baseOf(f.name)}.md`, encodeText(await turndown(await docxHtml(f))), "md")), { batch: true });
+add("doc", "md", "html", "HTML (웹 문서)", each(async f => out(`${baseOf(f.name)}.html`, encodeText(htmlDoc(baseOf(f.name), (await L.marked()).parse(await readText(f)))), "html")), { batch: true });
+add("doc", "html", "md", "Markdown", each(async f => out(`${baseOf(f.name)}.md`, encodeText(await turndown(await readText(f))), "md")), { batch: true });
+add("doc", "html", "txt", "TXT (텍스트)", each(async (f, o) => { const d = new DOMParser().parseFromString(await readText(f), "text/html"); d.querySelectorAll("script,style").forEach(e => e.remove()); return out(`${baseOf(f.name)}.txt`, encodeText((d.body.innerText || d.body.textContent).trim() + "\n", o.enc), "txt"); }), { batch: true, opts: O.enc() });
+const recode = enc => each(async f => { const r = decodeText(await f.arrayBuffer()); note(`${f.name}: ${r.enc}로 읽었습니다.`); return out(f.name, encodeText(r.text, enc), extOf(f.name)); });
+add("doc", "text", "utf8", "UTF-8로 저장", recode("utf8"), { batch: true, desc: "글자가 깨져 보이는 텍스트·자막·CSV 파일을 고칩니다. 원래 인코딩은 자동으로 알아냅니다." });
+add("doc", "text", "utf8bom", "UTF-8 (BOM)로 저장 — 엑셀 CSV용", recode("utf8bom"), { batch: true, desc: "엑셀에서 CSV를 열 때 한글이 깨지면 이걸로 바꾸세요." });
+add("doc", "text", "euckr", "EUC-KR로 저장 — 옛 프로그램용", recode("euckr"), { batch: true });
+
+// 엑셀·데이터
+const DATA_TO = { xlsx: [["csv", "CSV"], ["json", "JSON"], ["xlsx", "XLSX (최신 엑셀)"], ["ods", "ODS"], ["html", "HTML 표"], ["yaml", "YAML"]],
+  csv: [["xlsx", "XLSX (엑셀)"], ["json", "JSON"], ["yaml", "YAML"], ["html", "HTML 표"]],
+  json: [["csv", "CSV"], ["xlsx", "XLSX (엑셀)"], ["yaml", "YAML"], ["xml", "XML"]],
+  yaml: [["json", "JSON"], ["xml", "XML"], ["csv", "CSV"], ["xlsx", "XLSX (엑셀)"]],
+  xml: [["json", "JSON"], ["yaml", "YAML"], ["csv", "CSV"], ["xlsx", "XLSX (엑셀)"]] };
+for (const [from, list] of Object.entries(DATA_TO)) for (const [to, lab] of list)
+  add("data", from, to, lab, each((f, o) => convertData(f, from, to, o)), { batch: true, opts: to === "csv" ? O.enc("utf8bom") : [],
+    desc: to === "csv" && from === "xlsx" ? "시트가 여러 개면 시트마다 CSV가 만들어집니다." : (to === "csv" || to === "xlsx") && ["json", "yaml", "xml"].includes(from) ? "안쪽 객체는 a.b 형태의 열로 펼칩니다." : "" });
+
+// 자막
+const SUB_TO = [["srt", "SRT"], ["smi", "SMI"], ["vtt", "VTT (웹용)"], ["ass", "ASS"], ["txt", "TXT (대사만)"]];
+for (const [from] of FROMS.sub) for (const [to, lab] of [...SUB_TO, [from, "같은 형식 (싱크 조절)"]]) {
+  if (to === from && lab !== "같은 형식 (싱크 조절)") continue;
+  add("sub", from, to, lab, each((f, o) => convertSubs(f, from, to, o)), { batch: true,
+    opts: [{ id: "shift", label: "싱크 이동 (ms, +는 늦게)", type: "number", value: 0, step: 100 }, ...O.enc(to === "smi" ? "euckr" : "utf8")],
+    desc: "원본 인코딩(UTF-8/EUC-KR)은 자동으로 알아냅니다." });
+}
+
+// 압축
+add("zip", "files", "zip", "ZIP으로 묶기", async files => [out("files.zip", await makeZip(files.map(f => ({ name: f.name, blob: f }))))], { multi: 1 });
+add("zip", "zip", "unzip", "압축 풀기", each(async f => {
+  const z = (await L.fflate()).unzipSync(new Uint8Array(await f.arrayBuffer()));
+  const res = Object.entries(z).filter(([n]) => !n.endsWith("/")).map(([n, d]) => out(fixZipName(n), d, extOf(n)));
+  if (!res.length) throw new Error("압축 파일 안에 파일이 없습니다.");
+  return res;
+}), { batch: true, desc: "윈도우에서 만든 ZIP의 한글 파일명 깨짐도 고쳐서 풉니다. 암호 걸린 ZIP은 풀 수 없습니다." });
+add("zip", "gz", "gunzip", "압축 풀기", each(async f => { const n = baseOf(f.name); return out(n, (await L.fflate()).gunzipSync(new Uint8Array(await f.arrayBuffer())), extOf(n)); }), { batch: true });
+add("zip", "files", "gz", "GZ로 압축 (한 파일씩)", each(async f => out(f.name + ".gz", (await L.fflate()).gzipSync(new Uint8Array(await f.arrayBuffer()), { level: 9 }))), { batch: true });
+
+// 폰트
+add("font", "ttf", "woff", "WOFF (웹폰트)", each(sfntToWoff), { batch: true, desc: "웹사이트에 올리기 좋은 압축 폰트로 바꿉니다." });
+add("font", "woff", "ttf", "TTF·OTF (설치용)", each(woffToSfnt), { batch: true });
+
+/* =========================================================
+   화면
+   ========================================================= */
+let cat = "media", conv = null, files = [], urls = [];
+const fromSel = $("from"), toSel = $("to"), fileIn = $("file");
+
+function renderTabs() {
+  $("tabs").innerHTML = "";
+  for (const [id, name] of CATS) {
+    const b = document.createElement("button");
+    b.textContent = name; b.className = id === cat ? "on" : "";
+    b.onclick = () => setCat(id);
+    $("tabs").appendChild(b);
+  }
+}
+function setCat(id, from, to) {
+  cat = id; renderTabs();
+  fromSel.innerHTML = "";
+  for (const [k, lab] of FROMS[cat]) fromSel.add(new Option(lab, k));
+  if (from && FROMS[cat].some(f => f[0] === from)) fromSel.value = from;
+  fillTo(to);
+}
+function fillTo(to) {
+  const prev = to || toSel.value;
+  toSel.innerHTML = "";
+  const list = CONVS.filter(c => c.cat === cat && c.from === fromSel.value);
+  for (const c of list) toSel.add(new Option(c.toLabel, c.to));
+  if (list.some(c => c.to === prev)) toSel.value = prev;
+  setConv();
+}
+function setConv() {
+  conv = CONVS.find(c => c.cat === cat && c.from === fromSel.value && c.to === toSel.value);
+  const fr = FROMS[cat].find(f => f[0] === fromSel.value);
+  const accept = fr[2] === "*" ? "" : fr[2].split(",").map(e => "." + e).join(",");
+  fileIn.accept = accept;
+  fileIn.multiple = !!(conv.multi || conv.batch);
+  $("dropHint").textContent = (fr[2] === "*" ? "아무 파일" : fr[2].split(",").map(e => "." + e).join(" ")) + (fileIn.multiple ? " · 여러 개 가능" : "");
+  $("desc").textContent = conv.desc || "";
+  files = files.filter(f => accepts(fr, f));
+  renderOpts(); renderFiles();
+  history.replaceState(null, "", `#${cat}/${conv.from}-${conv.to}`);
+}
+const accepts = (fr, f) => fr[2] === "*" || fr[2].split(",").includes(extOf(f.name));
+fromSel.onchange = () => fillTo();
+toSel.onchange = setConv;
+
+function renderOpts() {
+  const box = $("opts"); box.innerHTML = "";
+  for (const op of conv.opts || []) {
+    const lab = document.createElement("label");
+    lab.innerHTML = `<span>${esc(op.label)}</span>`;
+    let el;
+    if (op.type === "select") { el = document.createElement("select"); for (const [v, t] of op.choices) el.add(new Option(t, v)); }
+    else { el = document.createElement("input"); el.type = op.type; for (const k of ["min", "max", "step"]) if (op[k] != null) el[k] = op[k]; }
+    el.id = "opt_" + op.id; el.value = op.value ?? "";
+    lab.appendChild(el); box.appendChild(lab);
+  }
+}
+function readOpts() {
+  const o = {};
+  for (const op of conv.opts || []) {
+    const v = $("opt_" + op.id).value.trim();
+    o[op.id] = op.type === "number" ? (v === "" ? 0 : +v) : v;
+  }
+  return o;
+}
+
+function renderFiles() {
+  const ul = $("files"); ul.innerHTML = "";
+  files.forEach((f, i) => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${esc(f.name)}</span><small>${sizeStr(f.size)}</small>`;
+    if (conv.multi && files.length > 1 && i > 0) { const up = document.createElement("button"); up.textContent = "↑"; up.title = "위로"; up.onclick = () => { [files[i - 1], files[i]] = [files[i], files[i - 1]]; renderFiles(); }; li.appendChild(up); }
+    const x = document.createElement("button"); x.textContent = "✕"; x.title = "빼기";
+    x.onclick = () => { files.splice(i, 1); renderFiles(); };
+    li.appendChild(x); ul.appendChild(li);
+  });
+  if (files.length > 2) {
+    const li = document.createElement("li"); li.style.background = "transparent";
+    li.innerHTML = `<span></span>`;
+    const s = document.createElement("button"); s.className = "mini"; s.textContent = "이름순 정렬";
+    s.onclick = () => { files.sort((a, b) => a.name.localeCompare(b.name, "ko", { numeric: true })); renderFiles(); };
+    const c = document.createElement("button"); c.className = "mini"; c.textContent = "모두 빼기";
+    c.onclick = () => { files = []; renderFiles(); };
+    li.append(s, c); ul.appendChild(li);
+  }
+  $("dropTitle").textContent = files.length ? (fileIn.multiple ? "파일 더 추가하기" : "다른 파일로 바꾸기") : "파일을 끌어다 놓거나 클릭해서 선택";
+  $("go").disabled = files.length < (conv.multi || 1);
+  $("go").textContent = conv.multi > 1 && files.length < conv.multi ? `파일을 ${conv.multi}개 이상 올려 주세요` : "변환하기";
+}
+
+function addFiles(list) {
+  list = [...list]; if (!list.length) return;
+  let fr = FROMS[cat].find(f => f[0] === fromSel.value);
+  if (!accepts(fr, list[0])) {   // 파일 확장자에 맞는 분야·형식으로 자동 이동
+    const e = extOf(list[0].name);
+    const hit = FROMS[cat].find(f => f[2].split(",").includes(e)) ? [cat, FROMS[cat].find(f => f[2].split(",").includes(e))[0]]
+      : CATS.map(([c]) => [c, (FROMS[c].find(f => f[2].split(",").includes(e)) || [])[0]]).find(x => x[1]);
+    if (!hit) { status(`.${e} 파일은 아직 지원하지 않습니다.`, true); return; }
+    files = []; setCat(hit[0], hit[1]); fr = FROMS[cat].find(f => f[0] === fromSel.value);
+  }
+  const ok = list.filter(f => accepts(fr, f)), skipped = list.length - ok.length;
+  files = fileIn.multiple ? [...files, ...ok] : ok.slice(0, 1);
+  renderFiles(); clearResult();
+  status(skipped ? `형식이 다른 파일 ${skipped}개는 뺐습니다.` : "");
+}
+const drop = $("drop");
+drop.onclick = () => fileIn.click();
+fileIn.onchange = () => { addFiles(fileIn.files); fileIn.value = ""; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
+
+let notes = [];
+function note(m) { notes.push(m); }
+function status(msg, err) { $("status").textContent = msg; $("status").classList.toggle("err", !!err); }
+function progress(p) { $("bar").style.display = p == null ? "none" : "block"; $("barFill").style.width = Math.max(0, Math.min(100, (p || 0) * 100)) + "%"; }
+function clearResult() { urls.forEach(URL.revokeObjectURL); urls = []; $("result").classList.remove("show"); }
+const urlOf = b => { const u = URL.createObjectURL(b); urls.push(u); return u; };
+
+$("go").onclick = async () => {
+  if (!files.length) return;
+  const btn = $("go"); btn.disabled = true; clearResult(); notes = [];
+  const t0 = performance.now();
+  try {
+    const res = uniqueNames(await conv.run(files, readOpts(), conv));
+    await showResult(res);
+    const total = res.reduce((s, r) => s + r.blob.size, 0);
+    status([`완료 · 파일 ${res.length}개 · ${sizeStr(total)} · ${((performance.now() - t0) / 1000).toFixed(1)}초`, ...notes].join("\n"));
+  } catch (e) {
+    console.error(e);
+    status((e && e.message) || String(e), true);
+  } finally { progress(null); btn.disabled = false; renderFiles(); }
+};
+
+async function showResult(res) {
+  const pv = $("preview"), dls = $("dls"), ol = $("outlist");
+  pv.innerHTML = dls.innerHTML = ol.innerHTML = "";
+  const first = res[0], t = first.blob.type, u = urlOf(first.blob);
   let el;
-  if (["gif", ...IMAGE].includes(t)) { el = new Image(); }
-  else if (VIDEO.includes(t)) { el = document.createElement("video"); el.controls = true; }
-  else { el = document.createElement("audio"); el.controls = true; }
-  el.src = lastURL;
-  pv.appendChild(el);
-  const base = file.name.replace(/\.[^.]+$/, "");
-  $("dl").href = lastURL;
-  $("dl").download = `${base}.${t}`;
+  if (t.startsWith("image/")) { el = new Image(); el.src = u; el.style.maxHeight = "360px"; }
+  else if (t.startsWith("video/")) { el = document.createElement("video"); el.controls = true; el.src = u; }
+  else if (t.startsWith("audio/")) { el = document.createElement("audio"); el.controls = true; el.src = u; }
+  else if (t === "text/html") { el = document.createElement("iframe"); el.sandbox = ""; el.src = u; }
+  else if (t === "application/pdf") { el = document.createElement("iframe"); el.src = u; }
+  else if (/^text\/|json|xml|yaml/.test(t) && first.blob.size < 5e6) {
+    el = document.createElement("pre");
+    const r = decodeText(await first.blob.slice(0, 6000).arrayBuffer()).text;
+    el.textContent = r + (first.blob.size > 6000 ? "\n…" : "");
+  }
+  if (el) pv.appendChild(el);
+  if (res.length === 1) {
+    const a = document.createElement("a"); a.className = "dl"; a.href = u; a.download = first.name; a.textContent = `다운로드 · ${first.name}`;
+    dls.appendChild(a);
+  } else {
+    const z = document.createElement("a"); z.className = "dl"; z.textContent = `모두 ZIP으로 받기 (${res.length}개)`;
+    z.onclick = async () => {
+      z.textContent = "ZIP 만드는 중…";
+      const blob = await makeZip(res);
+      const a = document.createElement("a"); a.href = urlOf(blob); a.download = `${baseOf(files[0]?.name || "result")}_변환.zip`; a.click();
+      z.textContent = `모두 ZIP으로 받기 (${res.length}개)`;
+    };
+    dls.appendChild(z);
+    for (const r of res) {
+      const li = document.createElement("li");
+      li.innerHTML = `<a href="${urlOf(r.blob)}" download="${esc(r.name)}">${esc(r.name)}</a> <small>${sizeStr(r.blob.size)}</small>`;
+      ol.appendChild(li);
+    }
+  }
   $("result").classList.add("show");
 }
+
+// 주소(#분야/원본-대상)로 바로 열기
+(function init() {
+  const m = location.hash.match(/^#(\w+)\/(\w+)-(\w+)$/);
+  if (m && FROMS[m[1]]) setCat(m[1], m[2], m[3]);
+  else setCat("media", "mp4", "gif");
+})();
 </script>
 </body>
 </html>
