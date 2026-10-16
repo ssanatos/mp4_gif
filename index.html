@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>파일 변환기</title>
+<meta name="description" content="MP4, GIF, WebM, MP3, PNG, JPG 등 파일을 브라우저에서 바로 변환합니다. 파일은 서버로 업로드되지 않습니다.">
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a65;
+    --line: #e2e0d8; --accent: #2f6b4f; --accent-ink: #ffffff; --soft: #e9f1ec; --err: #b3261e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #151614; --card: #1f201d; --ink: #ecebe6; --muted: #9c9b94;
+      --line: #33342f; --accent: #6fbf93; --accent-ink: #0f1a14; --soft: #22302a; --err: #f2b8b5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; line-height: 1.5; }
+  main { max-width: 640px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .row { display: flex; gap: 10px; align-items: end; }
+  .row > label { flex: 1; }
+  .arrow { padding-bottom: 10px; color: var(--muted); font-size: 20px; }
+  label > span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  select, input[type=number] { width: 100%; padding: 10px 12px; font: inherit; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+  .drop { margin-top: 16px; border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px;
+    text-align: center; cursor: pointer; color: var(--muted); transition: .15s; }
+  .drop.over, .drop:hover { border-color: var(--accent); background: var(--soft); }
+  .drop strong { color: var(--ink); display: block; word-break: break-all; }
+  .opts { display: none; margin-top: 16px; gap: 10px; }
+  .opts.show { display: flex; }
+  .opts label { flex: 1; }
+  button { margin-top: 16px; width: 100%; padding: 13px; font: inherit; font-weight: 600; border: 0;
+    border-radius: 10px; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 16px; overflow: hidden; display: none; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 21px; }
+  .status.err { color: var(--err); }
+  .result { margin-top: 20px; display: none; }
+  .result.show { display: block; }
+  .result img, .result video, .result audio { max-width: 100%; border-radius: 10px; display: block; margin-bottom: 12px; }
+  .dl { display: inline-block; padding: 11px 18px; border-radius: 10px; background: var(--soft);
+    color: var(--accent); font-weight: 600; text-decoration: none; }
+  .note { margin-top: 20px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>파일 변환기</h1>
+  <p class="sub">파일은 서버로 올라가지 않고 내 브라우저 안에서만 변환됩니다.</p>
+
+  <div class="card">
+    <div class="row">
+      <label><span>원본 형식</span><select id="from"></select></label>
+      <div class="arrow">→</div>
+      <label><span>바꿀 형식</span><select id="to"></select></label>
+    </div>
+
+    <div class="drop" id="drop">
+      <strong id="dropTitle">파일을 끌어다 놓거나 클릭해서 선택</strong>
+      <small id="dropHint"></small>
+      <input type="file" id="file" hidden>
+    </div>
+
+    <div class="opts" id="gifOpts">
+      <label><span>초당 프레임</span><input type="number" id="fps" value="12" min="1" max="30"></label>
+      <label><span>가로 크기(px)</span><input type="number" id="width" value="480" min="50" max="1920"></label>
+    </div>
+    <div class="opts" id="imgOpts">
+      <label><span>품질 (0.1~1, JPG·WebP)</span><input type="number" id="quality" value="0.92" min="0.1" max="1" step="0.01"></label>
+    </div>
+
+    <button id="go" disabled>변환하기</button>
+    <div class="bar" id="bar"><i id="barFill"></i></div>
+    <div class="status" id="status"></div>
+
+    <div class="result" id="result">
+      <div id="preview"></div>
+      <a class="dl" id="dl">다운로드</a>
+    </div>
+  </div>
+
+  <p class="note">영상·음성 변환은 처음 한 번 변환 엔진(약 30MB)을 받아옵니다. 큰 영상은 시간이 걸리고 메모리를 많이 씁니다.</p>
+</main>
+
+<script>
+// 변환 표: 원본 → 가능한 대상. engine: "ffmpeg" 또는 "canvas"
+const MIME = {
+  mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", avi: "video/x-msvideo", mkv: "video/x-matroska",
+  gif: "image/gif", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4",
+  png: "image/png", jpg: "image/jpeg", webp: "image/webp", bmp: "image/bmp"
+};
+const VIDEO = ["mp4", "webm", "mov", "avi", "mkv"];
+const AUDIO = ["mp3", "wav", "ogg", "m4a"];
+const IMAGE = ["png", "jpg", "webp", "bmp"];
+
+const TABLE = {};
+for (const v of VIDEO) TABLE[v] = [...VIDEO.filter(x => x !== v && x !== "avi" && x !== "mov"), "gif", "mp3", "wav"];
+TABLE.gif = ["mp4", "webm", "png", "jpg"];
+for (const a of AUDIO) TABLE[a] = AUDIO.filter(x => x !== a);
+for (const i of IMAGE) TABLE[i] = IMAGE.filter(x => x !== i && x !== "bmp"); // BMP는 브라우저 저장 미지원이라 원본으로만
+
+const LABEL = { mp4: "MP4 (영상)", webm: "WebM (영상)", mov: "MOV (영상)", avi: "AVI (영상)", mkv: "MKV (영상)",
+  gif: "GIF (움짤)", mp3: "MP3 (음성)", wav: "WAV (음성)", ogg: "OGG (음성)", m4a: "M4A (음성)",
+  png: "PNG (이미지)", jpg: "JPG (이미지)", webp: "WebP (이미지)", bmp: "BMP (이미지)" };
+
+const $ = id => document.getElementById(id);
+const fromSel = $("from"), toSel = $("to"), fileIn = $("file"), drop = $("drop");
+let file = null, ffmpeg = null, lastURL = null;
+
+for (const k of Object.keys(TABLE)) fromSel.add(new Option(LABEL[k], k));
+function fillTo() {
+  const keep = toSel.value;
+  toSel.innerHTML = "";
+  for (const k of TABLE[fromSel.value]) toSel.add(new Option(LABEL[k], k));
+  if (TABLE[fromSel.value].includes(keep)) toSel.value = keep;
+  fileIn.accept = "." + fromSel.value + (fromSel.value === "jpg" ? ",.jpeg" : "");
+  $("dropHint").textContent = "." + fromSel.value + " 파일";
+  if (file && extOf(file.name) !== fromSel.value) setFile(null);
+  updateOpts();
+}
+function updateOpts() {
+  $("gifOpts").classList.toggle("show", toSel.value === "gif" && fromSel.value !== "gif");
+  $("imgOpts").classList.toggle("show", engineFor() === "canvas" && ["jpg", "webp"].includes(toSel.value));
+}
+fromSel.onchange = fillTo;
+toSel.onchange = updateOpts;
+fromSel.value = "mp4"; fillTo(); toSel.value = "gif"; updateOpts();
+
+function extOf(name) { let e = name.split(".").pop().toLowerCase(); return e === "jpeg" ? "jpg" : e; }
+function engineFor() {
+  const f = fromSel.value, t = toSel.value;
+  return (IMAGE.includes(f) && IMAGE.includes(t)) ? "canvas" : "ffmpeg";
+}
+function setFile(f) {
+  file = f;
+  $("dropTitle").textContent = f ? `${f.name} (${(f.size / 1048576).toFixed(1)}MB)` : "파일을 끌어다 놓거나 클릭해서 선택";
+  $("go").disabled = !f;
+  $("result").classList.remove("show");
+  status("");
+}
+function pick(f) {
+  if (!f) return;
+  const e = extOf(f.name);
+  if (TABLE[e] && e !== fromSel.value) { fromSel.value = e; fillTo(); } // 원본 형식 자동 맞춤
+  setFile(f);
+}
+
+drop.onclick = () => fileIn.click();
+fileIn.onchange = () => pick(fileIn.files[0]);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); pick(e.dataTransfer.files[0]); };
+
+function status(msg, err) { $("status").textContent = msg; $("status").classList.toggle("err", !!err); }
+function progress(p) {
+  $("bar").style.display = p == null ? "none" : "block";
+  $("barFill").style.width = Math.max(0, Math.min(100, (p || 0) * 100)) + "%";
+}
+
+// ---------- 이미지: Canvas ----------
+async function convertCanvas() {
+  const bmp = await createImageBitmap(file);
+  const c = document.createElement("canvas");
+  c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext("2d");
+  if (toSel.value === "jpg") { ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height); } // 투명 → 흰 배경
+  ctx.drawImage(bmp, 0, 0);
+  const q = parseFloat($("quality").value) || 0.92;
+  return new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error("이 브라우저는 해당 형식 저장을 지원하지 않습니다.")), MIME[toSel.value], q));
+}
+
+// ---------- 영상·음성: ffmpeg.wasm ----------
+const CDN = "https://cdn.jsdelivr.net/npm";
+async function loadFFmpeg() {
+  if (ffmpeg) return ffmpeg;
+  status("변환 엔진 불러오는 중… (처음 한 번만)");
+  const { FFmpeg } = await import(`${CDN}/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js`);
+  const { toBlobURL } = await import(`${CDN}/@ffmpeg/util@0.12.1/dist/esm/index.js`);
+  const f = new FFmpeg();
+  f.on("progress", ({ progress: p }) => progress(p));
+  f.on("log", ({ message }) => console.log(message));
+  // GitHub Pages 같은 다른 출처에서도 워커가 뜨도록 전부 blob URL로 변환
+  await f.load({
+    classWorkerURL: await toBlobURL(`${CDN}/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js`, "text/javascript"),
+    coreURL: await toBlobURL(`${CDN}/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js`, "text/javascript"),
+    wasmURL: await toBlobURL(`${CDN}/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm`, "application/wasm"),
+  });
+  ffmpeg = f;
+  return f;
+}
+
+function ffArgs(inName, outName) {
+  const t = toSel.value;
+  const fps = parseInt($("fps").value) || 12, w = parseInt($("width").value) || 480;
+  const even = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+  switch (t) {
+    case "gif": return ["-i", inName, "-vf",
+      `fps=${fps},scale=${w}:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse`, "-loop", "0", outName];
+    case "mp4": return ["-i", inName, "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+      "-vf", even, "-c:a", "aac", "-movflags", "faststart", outName];
+    case "webm": return ["-i", inName, "-c:v", "libvpx", "-b:v", "1M", "-deadline", "realtime", "-c:a", "libvorbis", outName];
+    case "mkv": return ["-i", inName, "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", outName];
+    case "mp3": return ["-i", inName, "-vn", "-c:a", "libmp3lame", "-q:a", "2", outName];
+    case "wav": return ["-i", inName, "-vn", outName];
+    case "ogg": return ["-i", inName, "-vn", "-c:a", "libvorbis", "-q:a", "5", outName];
+    case "m4a": return ["-i", inName, "-vn", "-c:a", "aac", "-b:a", "192k", outName];
+    case "png": case "jpg": return ["-i", inName, "-frames:v", "1", outName]; // GIF 첫 프레임
+    default: return ["-i", inName, outName];
+  }
+}
+
+async function convertFFmpeg() {
+  const f = await loadFFmpeg();
+  const inName = "input." + fromSel.value, outName = "output." + toSel.value;
+  status("변환 중…");
+  progress(0);
+  await f.writeFile(inName, new Uint8Array(await file.arrayBuffer()));
+  const code = await f.exec(ffArgs(inName, outName));
+  if (code !== 0) throw new Error("변환에 실패했습니다. (콘솔 로그 확인)");
+  const data = await f.readFile(outName);
+  await f.deleteFile(inName).catch(() => {});
+  await f.deleteFile(outName).catch(() => {});
+  return new Blob([data.buffer], { type: MIME[toSel.value] });
+}
+
+$("go").onclick = async () => {
+  if (!file) return;
+  $("go").disabled = true;
+  $("result").classList.remove("show");
+  const t0 = performance.now();
+  try {
+    const blob = engineFor() === "canvas" ? await convertCanvas() : await convertFFmpeg();
+    showResult(blob);
+    status(`완료 · ${(blob.size / 1048576).toFixed(2)}MB · ${((performance.now() - t0) / 1000).toFixed(1)}초`);
+  } catch (e) {
+    console.error(e);
+    status(e.message || String(e), true);
+  } finally {
+    progress(null);
+    $("go").disabled = false;
+  }
+};
+
+function showResult(blob) {
+  if (lastURL) URL.revokeObjectURL(lastURL);
+  lastURL = URL.createObjectURL(blob);
+  const t = toSel.value, pv = $("preview");
+  pv.innerHTML = "";
+  let el;
+  if (["gif", ...IMAGE].includes(t)) { el = new Image(); }
+  else if (VIDEO.includes(t)) { el = document.createElement("video"); el.controls = true; }
+  else { el = document.createElement("audio"); el.controls = true; }
+  el.src = lastURL;
+  pv.appendChild(el);
+  const base = file.name.replace(/\.[^.]+$/, "");
+  $("dl").href = lastURL;
+  $("dl").download = `${base}.${t}`;
+  $("result").classList.add("show");
+}
+</script>
+</body>
+</html>
